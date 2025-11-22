@@ -1,0 +1,46 @@
+name: Microservices CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_test_deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [user-service, order-service]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Build Docker image
+      run: |
+        cd ${{ matrix.service }}
+        docker build -t ${{ matrix.service }}-img .
+
+    - name: Run unit tests
+      run: |
+        cd ${{ matrix.service }}
+        pip install flask
+        # егер unit tests болса
+        if [ -d "tests" ]; then
+          python -m unittest discover -s tests
+        else
+          echo "No tests found"
+        fi
+
+    - name: Deploy container
+      run: |
+        docker stop ${{ matrix.service }} || true
+        docker rm ${{ matrix.service }} || true
+        docker run -d -p $([ ${{ matrix.service }} == "user-service" ] && echo 5001 || echo 5002):5001 --name ${{ matrix.service }} ${{ matrix.service }}-img
